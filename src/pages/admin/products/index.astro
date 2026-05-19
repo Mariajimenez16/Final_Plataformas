@@ -1,0 +1,256 @@
+---
+
+
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+---
+
+<AdminLayout title="Gestionar Productos">
+  <div class="products-admin-container" data-animate="fade-in">
+    <section class="header-section">
+      <h1>Gestionar <span>Productos</span></h1>
+      <a href="/admin/products/new" class="btn btn-primary">➕ Nuevo Producto</a>
+    </section>
+
+    <div class="divider-3d"></div>
+
+    <div id="products-table" class="products-table">
+      <p style="text-align: center; color: var(--text-muted); padding: 2rem;">
+        Cargando productos...
+      </p>
+    </div>
+  </div>
+</AdminLayout>
+
+<script>
+  async function loadProducts() {
+    try {
+      const response = await fetch('/api/products');
+      const products = await response.json();
+
+      if (!Array.isArray(products) || products.length === 0) {
+        document.getElementById('products-table')!.innerHTML = `
+          <div style="text-align: center; padding: 3rem;">
+            <p style="color: var(--text-muted); margin-bottom: 1rem;">No hay productos</p>
+            <a href="/admin/products/new" class="btn btn-primary">Crear el primer producto</a>
+          </div>
+        `;
+        return;
+      }
+
+      const html = `
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Categoría</th>
+                <th>Precio</th>
+                <th>Stock</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${products.map((p) => `
+                <tr data-animate="fade-in">
+                  <td><strong>${p.name}</strong></td>
+                  <td>${p.category}</td>
+                  <td>$${p.price.toLocaleString('es-CO')}</td>
+                  <td>
+                    <span class="stock-badge ${p.stock > 0 ? 'in-stock' : 'out-of-stock'}">
+                      ${p.stock}
+                    </span>
+                  </td>
+                  <td class="actions">
+                    <a href="/admin/products/edit?id=${p.id}" class="btn btn-small">✏️ Editar</a>
+                    <button class="btn btn-small btn-danger" onclick="deleteProduct('${p.id}', '${p.name}')">
+                      🗑️ Eliminar
+                    </button>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      document.getElementById('products-table')!.innerHTML = html;
+    } catch (error) {
+      console.error('Failed to load products:', error);
+      document.getElementById('products-table')!.innerHTML = `
+        <div style="text-align: center; padding: 2rem; color: #ff4444;">
+          Error al cargar productos
+        </div>
+      `;
+    }
+  }
+
+  window.deleteProduct = async (id: string, name: string) => {
+    if (!confirm(`¿Eliminar "${name}"? Esta acción no se puede deshacer.`)) return;
+
+    try {
+      const response = await fetch(`/api/products/${id}`, { method: 'DELETE' });
+
+      if (!response.ok) {
+        alert('Error al eliminar el producto');
+        return;
+      }
+
+      alert('Producto eliminado exitosamente');
+      loadProducts();
+    } catch (error) {
+      console.error('Delete error:', error);
+      alert('Error al conectar con el servidor');
+    }
+  };
+
+  loadProducts();
+</script>
+
+<style>
+  .products-admin-container {
+    animation: fadeInUp 0.6s var(--easing-sharp);
+  }
+
+  .header-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .header-section h1 {
+    margin: 0;
+  }
+
+  .header-section h1 span {
+    color: var(--accent-cyan);
+  }
+
+  .table-responsive {
+    overflow-x: auto;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--bg-card);
+  }
+
+  thead {
+    background: var(--bg-dark);
+    border-bottom: 2px solid var(--border-color);
+  }
+
+  th {
+    padding: 1rem;
+    text-align: left;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 1px;
+  }
+
+  td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-primary);
+  }
+
+  tbody tr {
+    transition: all 0.3s ease;
+  }
+
+  tbody tr:hover {
+    background: var(--bg-hover);
+  }
+
+  .stock-badge {
+    display: inline-block;
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.85rem;
+  }
+
+  .stock-badge.in-stock {
+    background: rgba(0, 212, 255, 0.1);
+    color: var(--accent-cyan);
+  }
+
+  .stock-badge.out-of-stock {
+    background: rgba(255, 68, 68, 0.1);
+    color: #ff4444;
+  }
+
+  .actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .btn-small {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .btn-small:not(.btn-danger) {
+    background: var(--accent-cyan);
+    color: var(--bg-dark);
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .btn-small:not(.btn-danger):hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 212, 255, 0.3);
+  }
+
+  .btn-danger {
+    background: transparent;
+    color: #ff4444;
+    border: 1px solid #ff4444;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s ease;
+  }
+
+  .btn-danger:hover {
+    background: #ff4444;
+    color: white;
+  }
+
+  @media (max-width: 768px) {
+    .header-section {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .header-section h1 {
+      font-size: 1.8rem;
+    }
+
+    th,
+    td {
+      padding: 0.75rem;
+      font-size: 0.9rem;
+    }
+
+    .actions {
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+  }
+</style>

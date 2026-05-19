@@ -1,0 +1,45 @@
+---
+export interface Props {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  category: string;
+  stock: number;
+  image_url?: string;
+  href?: string;
+}
+
+const { id, name, description, price, category, stock, image_url, href = `/products/${id}` } = Astro.props;
+const inStock = stock > 0;
+---
+
+<a href={href} class="product-card" data-animate="fade-in-scale">
+  {image_url ? (
+    <img src={image_url} alt={name} class="product-image" />
+  ) : (
+    <div class="product-image" style="display: flex; align-items: center; justify-content: center; font-size: 3rem;">
+      📦
+    </div>
+  )}
+  <div class="product-body">
+    <div>
+      <p class="product-category">{category}</p>
+      <h3 class="product-name">{name}</h3>
+      <p class="product-description">{description.substring(0, 60)}...</p>
+    </div>
+    <div>
+      <p class="product-price">${price.toLocaleString('es-CO')}</p>
+      <p class="product-stock">
+        {inStock ? `✓ ${stock} en stock` : '✗ Agotado'}
+      </p>
+    </div>
+  </div>
+</a>
+
+<style>
+  .product-card {
+    color: inherit;
+    display: block;
+  }
+</style>

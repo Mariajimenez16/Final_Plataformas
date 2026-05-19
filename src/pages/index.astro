@@ -1,0 +1,232 @@
+---
+export const prerender = false;
+
+import PublicLayout from '../layouts/PublicLayout.astro';
+import ProductCard from '../components/ProductCard.astro';
+import { supabase } from '../lib/supabase';
+
+const { url } = Astro;
+const searchParams = url.searchParams;
+
+const search = searchParams.get('search') || '';
+const category = searchParams.get('category') || '';
+const page = parseInt(searchParams.get('page') || '1');
+
+const pageSize = 8;
+const from = (page - 1) * pageSize;
+const to = from + pageSize - 1;
+
+let query = supabase
+  .from('products')
+  .select('*', { count: 'exact' })
+  .range(from, to);
+
+if (search) {
+  query = query.ilike('name', `%${search}%`);
+}
+
+if (category) {
+  query = query.eq('category', category);
+}
+
+const { data: products, error, count } = await query;
+const totalPages = count ? Math.ceil(count / pageSize) : 1;
+
+console.log("PRODUCTS:", products);
+console.log("ERROR:", error);
+
+const { data: categoriesData } = await supabase
+  .from('products')
+  .select('category');
+
+const categories = [
+  ...new Set(categoriesData?.map((p) => p.category) || [])
+];
+
+const getPageUrl = (p) => {
+  const newParams = new URLSearchParams(searchParams);
+  newParams.set('page', p.toString());
+  return `/?${newParams.toString()}`;
+};
+---
+
+<PublicLayout title="Catálogo">
+  <section class="hero-section">
+    <h1>Catálogo de <span>Gadgets</span></h1>
+    <p class="hero-subtitle">
+      Descubre la tecnología más avanzada
+    </p>
+  </section>
+
+  <section class="filters-section">
+    <form method="GET" action="/" class="filters-form">
+      <input
+        type="text"
+        name="search"
+        placeholder="Buscar productos..."
+        value={search}
+        class="filter-input"
+      />
+
+      <select name="category" class="filter-select">
+        <option value="">Todas las categorías</option>
+
+        {categories.map((cat) => (
+          <option
+            value={cat}
+            selected={category === cat}
+          >
+            {cat}
+          </option>
+        ))}
+      </select>
+
+      <button type="submit" class="btn-search">
+        Buscar
+      </button>
+    </form>
+  </section>
+
+  {error ? (
+    <div class="error-container">
+      <p>❌ Error al cargar productos</p>
+    </div>
+  ) : (
+    <div class="products-grid">
+      {products && products.length > 0 ? (
+        products.map((product) => (
+          <ProductCard
+            id={product.id}
+            name={product.name}
+            description={product.description}
+            price={product.price}
+            category={product.category}
+            stock={product.stock}
+            image_url={product.image_url}
+          />
+        ))
+      ) : (
+        <div class="empty-state">
+          <p>No hay productos disponibles</p>
+        </div>
+      )}
+    </div>
+  )}
+
+  {totalPages > 1 && (
+    <div class="pagination">
+      <a
+        href={page > 1 ? getPageUrl(page - 1) : '#'}
+        class={`btn-page ${page === 1 ? 'disabled' : ''}`}
+      >
+        Anterior
+      </a>
+      <span class="page-info">
+        Página {page} de {totalPages}
+      </span>
+      <a
+        href={page < totalPages ? getPageUrl(page + 1) : '#'}
+        class={`btn-page ${page === totalPages ? 'disabled' : ''}`}
+      >
+        Siguiente
+      </a>
+    </div>
+  )}
+</PublicLayout>
+
+<style>
+  .hero-section {
+    text-align: center;
+    margin-bottom: 3rem;
+  }
+
+  .hero-section h1 {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+  }
+
+  .hero-section span {
+    color: #00d4ff;
+  }
+
+  .hero-subtitle {
+    color: #aaa;
+  }
+
+  .filters-section {
+    margin-bottom: 2rem;
+  }
+
+  .filters-form {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .filter-input,
+  .filter-select {
+    padding: 0.8rem;
+    border-radius: 8px;
+    border: 1px solid #333;
+    background: #111;
+    color: white;
+  }
+
+  .btn-search {
+    padding: 0.8rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    background: #00d4ff;
+    color: black;
+    font-weight: bold;
+    cursor: pointer;
+  }
+
+  .products-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .error-container,
+  .empty-state {
+    text-align: center;
+    padding: 3rem;
+    color: #aaa;
+  }
+
+  .pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1.5rem;
+    margin-top: 3rem;
+  }
+
+  .btn-page {
+    padding: 0.6rem 1.2rem;
+    border-radius: 8px;
+    background: #111;
+    border: 1px solid #333;
+    color: #00d4ff;
+    text-decoration: none;
+    font-weight: bold;
+    transition: all 0.3s ease;
+  }
+
+  .btn-page:hover:not(.disabled) {
+    background: #222;
+    border-color: #00d4ff;
+  }
+
+  .btn-page.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    color: #555;
+  }
+
+  .page-info {
+    color: #fff;
+    font-size: 0.95rem;
+  }
+</style>

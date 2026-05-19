@@ -1,0 +1,381 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+---
+
+<AdminLayout title="Editar Producto">
+  <div class="product-form-container" data-animate="fade-in">
+    <a href="/admin/products" class="back-link">← Volver a productos</a>
+
+    <section class="form-section">
+      <h1>Editar <span>Producto</span></h1>
+      <div class="divider-3d"></div>
+
+      <form id="product-form" class="product-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="name">Nombre del Producto *</label>
+            <input
+              type="text"
+              id="name"
+              name="name"
+              placeholder="Ej: iPhone 15 Pro"
+              required
+            />
+            <span class="error" id="name-error"></span>
+          </div>
+
+          <div class="form-group">
+            <label for="category">Categoría *</label>
+            <input
+              type="text"
+              id="category"
+              name="category"
+              placeholder="Ej: Smartphones"
+              required
+            />
+            <span class="error" id="category-error"></span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="description">Descripción *</label>
+          <textarea
+            id="description"
+            name="description"
+            rows="4"
+            placeholder="Describe el producto en detalle..."
+            required
+          ></textarea>
+          <span class="error" id="description-error"></span>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="price">Precio (COP) *</label>
+            <input
+              type="number"
+              id="price"
+              name="price"
+              placeholder="0.00"
+              step="0.01"
+              min="0"
+              required
+            />
+            <span class="error" id="price-error"></span>
+          </div>
+
+          <div class="form-group">
+            <label for="stock">Stock *</label>
+            <input
+              type="number"
+              id="stock"
+              name="stock"
+              placeholder="0"
+              min="0"
+              required
+            />
+            <span class="error" id="stock-error"></span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="image_file">Imagen del Producto (Opcional - dejar vacío para mantener la actual)</label>
+          <input
+            type="file"
+            id="image_file"
+            name="image_file"
+            accept="image/*"
+          />
+          <input type="hidden" id="image_url" name="image_url" />
+          <span class="error" id="image_url-error"></span>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" id="submit-btn">
+            ✓ Actualizar Producto
+          </button>
+          <a href="/admin/products" class="btn btn-secondary">Cancelar</a>
+        </div>
+
+        <div id="message"></div>
+      </form>
+    </section>
+  </div>
+</AdminLayout>
+
+<script>
+  const urlParams = new URLSearchParams(window.location.search);
+  const productId = urlParams.get('id');
+
+  const form = document.getElementById('product-form') as HTMLFormElement;
+  const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement;
+  const messageDiv = document.getElementById('message') as HTMLDivElement;
+
+  async function loadProduct() {
+    try {
+      const response = await fetch(`/api/products`);
+      const products = await response.json();
+      const product = products.find((p: any) => p.id === productId);
+
+      if (!product) {
+        messageDiv.textContent = 'Producto no encontrado';
+        messageDiv.className = 'error-message';
+        return;
+      }
+
+      (document.getElementById('name') as HTMLInputElement).value = product.name;
+      (document.getElementById('description') as HTMLTextAreaElement).value = product.description;
+      (document.getElementById('price') as HTMLInputElement).value = product.price;
+      (document.getElementById('category') as HTMLInputElement).value = product.category;
+      (document.getElementById('stock') as HTMLInputElement).value = product.stock;
+      (document.getElementById('image_url') as HTMLInputElement).value = product.image_url || '';
+    } catch (error) {
+      console.error('Failed to load product:', error);
+      messageDiv.textContent = 'Error al cargar el producto';
+      messageDiv.className = 'error-message';
+    }
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    document.querySelectorAll('.error').forEach(el => el.textContent = '');
+    messageDiv.textContent = '';
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Actualizando...';
+
+    try {
+      const imageFile = (document.getElementById('image_file') as HTMLInputElement).files?.[0];
+      let finalImageUrl = (document.getElementById('image_url') as HTMLInputElement).value;
+
+      if (imageFile) {
+        submitBtn.textContent = 'Subiendo imagen...';
+        const imgFormData = new FormData();
+        imgFormData.append('image', imageFile);
+
+        const uploadRes = await fetch('/api/upload', {
+          method: 'POST',
+          body: imgFormData
+        });
+
+        if (!uploadRes.ok) {
+          const uploadError = await uploadRes.json();
+          throw new Error(uploadError.error || 'Error al subir la imagen');
+        }
+
+        const uploadData = await uploadRes.json();
+        finalImageUrl = uploadData.url;
+      }
+
+      const formData = {
+        name: (document.getElementById('name') as HTMLInputElement).value,
+        description: (document.getElementById('description') as HTMLTextAreaElement).value,
+        price: parseFloat((document.getElementById('price') as HTMLInputElement).value),
+        category: (document.getElementById('category') as HTMLInputElement).value,
+        stock: parseInt((document.getElementById('stock') as HTMLInputElement).value),
+        image_url: finalImageUrl
+      };
+
+      submitBtn.textContent = 'Guardando cambios...';
+      const response = await fetch(`/api/products/${productId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (data.errors) {
+          data.errors.forEach((err: any) => {
+            const errorEl = document.getElementById(`${err.field}-error`);
+            if (errorEl) errorEl.textContent = err.message;
+          });
+        } else {
+          messageDiv.textContent = data.error || 'Error al actualizar';
+          messageDiv.className = 'error-message';
+        }
+      } else {
+        messageDiv.textContent = 'Producto actualizado. Redirigiendo...';
+        messageDiv.className = 'success-message';
+        setTimeout(() => {
+          window.location.href = '/admin/products';
+        }, 1500);
+      }
+    } catch (error) {
+      messageDiv.textContent = 'Error de conexión';
+      messageDiv.className = 'error-message';
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = '✓ Actualizar Producto';
+    }
+  });
+
+  loadProduct();
+</script>
+
+<style>
+  .product-form-container {
+    max-width: 700px;
+    animation: fadeInUp 0.6s var(--easing-sharp);
+  }
+
+  .back-link {
+    display: inline-block;
+    margin-bottom: 2rem;
+    color: var(--accent-cyan);
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.3s ease;
+  }
+
+  .back-link:hover {
+    color: var(--accent-magenta);
+  }
+
+  .form-section h1 {
+    margin-bottom: 0.5rem;
+  }
+
+  .form-section h1 span {
+    color: var(--accent-cyan);
+  }
+
+  .product-form {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 2rem;
+    margin-top: 2rem;
+  }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+  }
+
+  .form-group {
+    margin-bottom: 1.5rem;
+  }
+
+  .form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  .form-group input,
+  .form-group textarea {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.95rem;
+    transition: all 0.3s ease;
+  }
+
+  .form-group input:focus,
+  .form-group textarea:focus {
+    outline: none;
+    border-color: var(--accent-cyan);
+    box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+    background: var(--bg-hover);
+  }
+
+  .form-group textarea {
+    resize: vertical;
+    min-height: 120px;
+  }
+
+  .error {
+    display: block;
+    color: #ff4444;
+    font-size: 0.85rem;
+    margin-top: 0.4rem;
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 2rem;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    flex: 1;
+    min-width: 150px;
+    padding: 0.85rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 700;
+    text-decoration: none;
+    text-align: center;
+    transition: all 0.3s var(--easing-sharp);
+    cursor: pointer;
+    border: none;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent-cyan), var(--accent-magenta));
+    color: var(--bg-dark);
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(0, 212, 255, 0.4);
+  }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--accent-cyan);
+    border: 2px solid var(--accent-cyan);
+  }
+
+  .btn-secondary:hover {
+    background: var(--accent-cyan);
+    color: var(--bg-dark);
+  }
+
+  #message {
+    margin-top: 1rem;
+    padding: 1rem;
+    border-radius: 8px;
+    text-align: center;
+    font-weight: 600;
+  }
+
+  .error-message {
+    background: rgba(255, 68, 68, 0.1);
+    color: #ff4444;
+    border: 1px solid rgba(255, 68, 68, 0.3);
+  }
+
+  .success-message {
+    background: rgba(0, 212, 255, 0.1);
+    color: var(--accent-cyan);
+    border: 1px solid rgba(0, 212, 255, 0.3);
+  }
+
+  @media (max-width: 600px) {
+    .form-row {
+      grid-template-columns: 1fr;
+    }
+
+    .product-form {
+      padding: 1.5rem;
+    }
+
+    .form-actions {
+      flex-direction: column;
+    }
+
+    .btn {
+      width: 100%;
+    }
+  }
+</style>
